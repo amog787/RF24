@@ -9,7 +9,7 @@
 #include "nRF24L01.h"
 #include "RF24_config.h"
 #include "RF24.h"
-extern UART_HandleTypeDef huart1;
+static UART_HandleTypeDef nrf24_huart;
 /****************************************************************************/
 
 void RF24::csn(GPIO_PinState mode)
@@ -89,7 +89,7 @@ uint8_t RF24::write_register(uint8_t reg, uint8_t value)
 #ifdef SERIAL_DEBUG
 	char buffer[100];
 	sprintf(buffer, PSTR("write_register(%02x,%02x)\r\n"),reg,value);
-	HAL_UART_Transmit(&huart1,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
+	HAL_UART_Transmit(&nrf24_huart,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
 #endif
 	beginTransaction();
 	HAL_SPI_TransmitReceive(hspix, &temp, &status, 1, HAL_MAX_DELAY);
@@ -101,7 +101,7 @@ uint8_t RF24::write_register(uint8_t reg, uint8_t value)
 
 /****************************************************************************/
 
-uint8_t RF24::write_payload(const void* buf, uint8_t data_len, const uint8_t writeType)
+uint8_t RF24::write_payload(const void* buf, uint8_t data_len, uint8_t writeType)
 {
 	uint8_t status, temp;
 	const uint8_t* current = reinterpret_cast<const uint8_t*>(buf);
@@ -113,7 +113,7 @@ uint8_t RF24::write_payload(const void* buf, uint8_t data_len, const uint8_t wri
 #ifdef SERIAL_DEBUG
 	char buffer[100];
 	sprintf(buffer,"[Writing %u bytes %u blanks]\n",data_len,blank_len);
-	HAL_UART_Transmit(&huart1,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
+	HAL_UART_Transmit(&nrf24_huart,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
 #endif
 	beginTransaction();
 	HAL_SPI_TransmitReceive(hspix, &writeType, &status, 1, HAL_MAX_DELAY);
@@ -143,7 +143,7 @@ uint8_t RF24::read_payload(void* buf, uint8_t data_len)
 #ifdef SERIAL_DEBUG
 	char buffer[100];
 	sprintf(buffer, "[Reading %u bytes %u blanks]\n",data_len,blank_len);
-	HAL_UART_Transmit(&huart1,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
+	HAL_UART_Transmit(&nrf24_huart,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
 #endif
 	beginTransaction();
 	HAL_SPI_TransmitReceive(hspix, &temp, &status, 1, HAL_MAX_DELAY);
@@ -199,7 +199,7 @@ void RF24::print_status(uint8_t status)
 	char buffer[100];
 	sprintf(buffer, PSTR("STATUS\t\t = 0x%02x RX_DR=%x TX_DS=%x MAX_RT=%x RX_P_NO=%x TX_FULL=%x\r\n"), status, (status & _BV(RX_DR)) ? 1 : 0, (status & _BV(TX_DS)) ? 1 : 0, (status & _BV(MAX_RT)) ? 1 : 0,
 			((status >> RX_P_NO) & 0x07), (status & _BV(TX_FULL)) ? 1 : 0);
-	HAL_UART_Transmit(&huart1,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
+	HAL_UART_Transmit(&nrf24_huart,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
 }
 
 /****************************************************************************/
@@ -208,7 +208,7 @@ void RF24::print_observe_tx(uint8_t value)
 {
 	char buffer[100];
 	sprintf(buffer, PSTR("OBSERVE_TX=%02x: POLS_CNT=%x ARC_CNT=%x\r\n"), value, (value >> PLOS_CNT) & 0x0F, (value >> ARC_CNT) & 0x0F);
-	HAL_UART_Transmit(&huart1,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
+	HAL_UART_Transmit(&nrf24_huart,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
 }
 
 /****************************************************************************/
@@ -219,17 +219,17 @@ void RF24::print_byte_register(const char* name, uint8_t reg, uint8_t qty)
 	//printf_P(PSTR(PRIPSTR"\t%c ="),name,extra_tab);
 	char buffer[100];
 	sprintf(buffer, PSTR(PRIPSTR"\t ="), name);
-	HAL_UART_Transmit(&huart1,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
+	HAL_UART_Transmit(&nrf24_huart,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
 
 	while (qty--)
 	{
 		memcpy(buffer,0,100);
 		sprintf(buffer, PSTR(" 0x%02x"), read_register(reg++));
-		HAL_UART_Transmit(&huart1,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
+		HAL_UART_Transmit(&nrf24_huart,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
 	}
 	memcpy(buffer,0,100);
 	sprintf(buffer, PSTR("\r\n"));
-	HAL_UART_Transmit(&huart1,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
+	HAL_UART_Transmit(&nrf24_huart,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
 }
 
 /****************************************************************************/
@@ -239,7 +239,7 @@ void RF24::print_address_register(const char* name, uint8_t reg, uint8_t qty)
 	char buffer2[100];
 
 	sprintf(buffer2, PSTR(PRIPSTR"\t ="), name);
-	HAL_UART_Transmit(&huart1,(uint8_t *)buffer2,strlen(buffer2),HAL_MAX_DELAY);
+	HAL_UART_Transmit(&nrf24_huart,(uint8_t *)buffer2,strlen(buffer2),HAL_MAX_DELAY);
 	while (qty--)
 	{
 		memcpy(buffer2,0,100);
@@ -248,18 +248,18 @@ void RF24::print_address_register(const char* name, uint8_t reg, uint8_t qty)
 
 		sprintf(buffer2, PSTR(" 0x"));
 
-		HAL_UART_Transmit(&huart1,(uint8_t *)buffer2,strlen(buffer2),HAL_MAX_DELAY);
+		HAL_UART_Transmit(&nrf24_huart,(uint8_t *)buffer2,strlen(buffer2),HAL_MAX_DELAY);
 		uint8_t* bufptr = buffer + sizeof buffer;
 		while (--bufptr >= buffer)
 		{
 			memcpy(buffer2,0,100);
 			sprintf(buffer2, PSTR("%02x"), *bufptr);
-			HAL_UART_Transmit(&huart1,(uint8_t *)buffer2,strlen(buffer2),HAL_MAX_DELAY);
+			HAL_UART_Transmit(&nrf24_huart,(uint8_t *)buffer2,strlen(buffer2),HAL_MAX_DELAY);
 		}
 	}
 	memcpy(buffer2,0,100);
 	sprintf(buffer2, PSTR("\r\n"));
-	HAL_UART_Transmit(&huart1,(uint8_t *)buffer2,strlen(buffer2),HAL_MAX_DELAY);
+	HAL_UART_Transmit(&nrf24_huart,(uint8_t *)buffer2,strlen(buffer2),HAL_MAX_DELAY);
 }
 #endif
 /****************************************************************************/
@@ -341,16 +341,16 @@ void RF24::printDetails(void)
 	print_byte_register(PSTR("DYNPD/FEATURE"), DYNPD, 2);
 
 	sprintf(buffer, PSTR("Data Rate\t = " PRIPSTR "\r\n"), pgm_read_ptr(&rf24_datarate_e_str_P[getDataRate()]));
-	HAL_UART_Transmit(&huart1,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
+	HAL_UART_Transmit(&nrf24_huart,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
 	sprintf(buffer, PSTR("Model\t\t = " PRIPSTR "\r\n"), pgm_read_ptr(&rf24_model_e_str_P[isPVariant()]));
 	memcpy(buffer,0,100);
-	HAL_UART_Transmit(&huart1,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
+	HAL_UART_Transmit(&nrf24_huart,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
 	sprintf(buffer, PSTR("CRC Length\t = " PRIPSTR "\r\n"), pgm_read_ptr(&rf24_crclength_e_str_P[getCRCLength()]));
 	memcpy(buffer,0,100);
-	HAL_UART_Transmit(&huart1,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
+	HAL_UART_Transmit(&nrf24_huart,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
 	sprintf(buffer, PSTR("PA Power\t = " PRIPSTR "\r\n"), pgm_read_ptr(&rf24_pa_dbm_e_str_P[getPALevel()]));
 	memcpy(buffer,0,100);
-	HAL_UART_Transmit(&huart1,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
+	HAL_UART_Transmit(&nrf24_huart,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
 }
 
 #endif
@@ -534,7 +534,7 @@ void RF24::errNotify()
 #if defined (SERIAL_DEBUG)
 	char buffer[100];
 	sprintf(buffer,PSTR("RF24 HARDWARE FAIL: Radio not responding, verify pin connections, wiring, etc.\r\n"));
-	HAL_UART_Transmit(&huart1,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
+	HAL_UART_Transmit(&nrf24_huart,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
 #endif
 #if defined (FAILURE_HANDLING)
 	failureDetected = 1;
@@ -1031,7 +1031,7 @@ void RF24::enableDynamicPayloads(void)
 #ifdef SERIAL_DEBUG
 	char buffer[100];
 	sprintf(buffer, "FEATURE=%i\r\n",read_register(FEATURE));
-	HAL_UART_Transmit(&huart1,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
+	HAL_UART_Transmit(&nrf24_huart,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
 #endif
 	// Enable dynamic payload on all pipes
 	//
@@ -1053,7 +1053,7 @@ void RF24::disableDynamicPayloads(void)
 #ifdef SERIAL_DEBUG
 	char buffer[100];
 	sprintf(buffer, "FEATURE=%i\r\n",read_register(FEATURE));
-	HAL_UART_Transmit(&huart1,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
+	HAL_UART_Transmit(&nrf24_huart,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
 #endif
 
 	// Disable dynamic payload on all pipes
@@ -1079,7 +1079,7 @@ void RF24::enableAckPayload(void)
 #ifdef SERIAL_DEBUG
 	char buffer[100];
 	sprintf(buffer, "FEATURE=%i\r\n",read_register(FEATURE));
-	HAL_UART_Transmit(&huart1,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
+	HAL_UART_Transmit(&nrf24_huart,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
 #endif
 
 	//
@@ -1103,7 +1103,7 @@ void RF24::enableDynamicAck(void)
 #ifdef SERIAL_DEBUG
 	char buffer[100];
 	sprintf(buffer, "FEATURE=%i\r\n",read_register(FEATURE));
-	HAL_UART_Transmit(&huart1,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
+	HAL_UART_Transmit(&nrf24_huart,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
 #endif
 
 }
@@ -1339,4 +1339,10 @@ void RF24::disableCRC(void)
 void RF24::setRetries(uint8_t delay, uint8_t count)
 {
 	write_register(SETUP_RETR, (delay & 0xf) << ARD | (count & 0xf) << ARC);
+}
+
+/****************************************************************************/
+void RF24::DebugUART_Init(UART_HandleTypeDef nrf24Uart)
+{
+	memcpy(&nrf24_huart, &nrf24Uart, sizeof(nrf24Uart));
 }

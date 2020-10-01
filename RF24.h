@@ -703,6 +703,13 @@ s   *
    */
   void setChannel(uint8_t channel);
   
+   /**
+   * Set UART
+   *
+   * @param UART Which UART to communicate on
+   */
+  void DebugUART_Init(UART_HandleTypeDef nrf24Uart);
+  
     /**
    * Get RF communication channel
    *
